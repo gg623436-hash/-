@@ -1,0 +1,23 @@
+{
+  "short_name": "TaskFlow",
+  "name": "TaskFlow — Умный планировщик задач",
+  "description": "Современный планировщик задач с напоминаниями",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "display": "standalone",
+  "theme_color": "#6366f1",
+  "orientation": "portrait"
+}
