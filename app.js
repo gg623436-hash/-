@@ -1,4 +1,4 @@
-// app.js - полная логика приложения
+// app.js - полная логика приложения с уведомлениями
 let currentFilter = 'all';
 let editingTaskId = null;
 
@@ -32,6 +32,7 @@ class TaskManager {
                     store.createIndex('date_time', 'date_time');
                     store.createIndex('completed', 'completed');
                     store.createIndex('created_at', 'created_at');
+                    console.log('✅ Хранилище создано');
                 }
             };
         });
@@ -206,6 +207,7 @@ function escapeHtml(text) {
 
 function showToast(message, isError = false) {
     const toast = document.getElementById('toast');
+    if (!toast) return;
     toast.textContent = message;
     toast.style.background = isError ? '#ef4444' : '#1e293b';
     toast.classList.add('show');
@@ -214,6 +216,7 @@ function showToast(message, isError = false) {
 
 function setDefaultDateTime() {
     const input = document.getElementById('taskDateTime');
+    if (!input) return;
     const now = new Date();
     now.setHours(now.getHours() + 1);
     now.setMinutes(0);
@@ -225,12 +228,131 @@ function updateStats(tasks) {
     const active = tasks.filter(t => t.completed == 0).length;
     const completed = tasks.filter(t => t.completed == 1).length;
     
-    document.getElementById('statTotal').querySelector('.stat-value').textContent = total;
-    document.getElementById('statActive').querySelector('.stat-value').textContent = active;
-    document.getElementById('statCompleted').querySelector('.stat-value').textContent = completed;
+    const statTotal = document.getElementById('statTotal');
+    const statActive = document.getElementById('statActive');
+    const statCompleted = document.getElementById('statCompleted');
+    
+    if (statTotal) statTotal.querySelector('.stat-value').textContent = total;
+    if (statActive) statActive.querySelector('.stat-value').textContent = active;
+    if (statCompleted) statCompleted.querySelector('.stat-value').textContent = completed;
 }
 
-// ============ ОСНОВНЫЕ ФУНКЦИИ ============
+// ============ ФУНКЦИИ УВЕДОМЛЕНИЙ ============
+async function requestNotificationPermission() {
+    console.log('🔄 Запрос разрешения на уведомления');
+    
+    if (!('Notification' in window)) {
+        showToast('❌ Ваш браузер не поддерживает уведомления', true);
+        return;
+    }
+    
+    if (Notification.permission === 'granted') {
+        showToast('✅ Уведомления уже включены');
+        updateNotificationButton(true);
+        return;
+    }
+    
+    if (Notification.permission === 'denied') {
+        showToast('❌ Уведомления запрещены. Разрешите в настройках браузера', true);
+        return;
+    }
+    
+    try {
+        const permission = await Notification.requestPermission();
+        console.log('Результат запроса:', permission);
+        
+        if (permission === 'granted') {
+            updateNotificationButton(true);
+            showToast('✅ Уведомления включены');
+            
+            // Тестовое уведомление
+            new Notification('🔔 Уведомления включены', {
+                body: 'Вы будете получать напоминания о задачах',
+                icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="%236366f1"/><text x="50" y="70" text-anchor="middle" fill="white" font-size="50">🔔</text></svg>'
+            });
+        } else {
+            updateNotificationButton(false);
+            showToast('❌ Разрешение не получено', true);
+        }
+    } catch (error) {
+        console.error('Ошибка при запросе:', error);
+        showToast('Ошибка при запросе уведомлений', true);
+    }
+}
+
+function updateNotificationButton(enabled) {
+    const btn = document.getElementById('notificationBtn');
+    if (!btn) return;
+    
+    if (enabled) {
+        btn.textContent = '🔔 Уведомления включены';
+        btn.style.background = '#22c55e';
+        btn.style.borderColor = '#22c55e';
+        btn.style.color = 'white';
+    } else {
+        btn.textContent = '🔔 Включить уведомления';
+        btn.style.background = 'rgba(99,102,241,0.2)';
+        btn.style.borderColor = 'rgba(99,102,241,0.5)';
+        btn.style.color = '#a5b4fc';
+    }
+}
+
+function showBrowserNotification(title, body) {
+    if (Notification.permission === 'granted') {
+        new Notification(title, { body: body });
+        console.log(`🔔 Уведомление: ${title} - ${body}`);
+    }
+}
+
+// Проверка напоминаний (запускается каждую минуту)
+async function checkReminders() {
+    console.log('🕐 Проверка напоминаний...', new Date().toLocaleTimeString());
+    
+    if (Notification.permission !== 'granted') {
+        console.log('❌ Нет разрешения на уведомления');
+        return;
+    }
+    
+    try {
+        const tasks = await taskManager.getAllTasks();
+        const now = new Date();
+        let reminderCount = 0;
+        
+        for (const task of tasks) {
+            // Пропускаем выполненные задачи
+            if (task.completed == 1) continue;
+            
+            const taskTime = new Date(task.date_time);
+            const diff = taskTime - now;
+            const key = `reminded_${task.id}`;
+            
+            // Уведомление за 5 минут до задачи
+            if (diff > 0 && diff <= 5 * 60 * 1000 && !localStorage.getItem(key)) {
+                const minutesLeft = Math.ceil(diff / 60000);
+                console.log(`🔔 Напоминание для "${task.title}" через ${minutesLeft} мин.`);
+                
+                showBrowserNotification('🔔 Напоминание о задаче', 
+                    `"${task.title}" через ${minutesLeft} минут!`);
+                
+                localStorage.setItem(key, 'true');
+                reminderCount++;
+            }
+            
+            // Очищаем флаг, если задача просрочена
+            if (diff < 0 && localStorage.getItem(key)) {
+                localStorage.removeItem(key);
+            }
+        }
+        
+        if (reminderCount > 0) {
+            console.log(`✅ Отправлено ${reminderCount} напоминаний`);
+        }
+    } catch (error) {
+        console.error('Ошибка проверки напоминаний:', error);
+    }
+}
+
+// ============ ОСНОВНЫЕ ФУНКЦИИ ПРИЛОЖЕНИЯ ============
 async function loadTasks() {
     try {
         const tasks = await taskManager.getAllTasks();
@@ -258,6 +380,7 @@ async function loadTasks() {
 
 function renderTasks(tasks) {
     const tasksList = document.getElementById('tasksList');
+    if (!tasksList) return;
     
     if (tasks.length === 0) {
         tasksList.innerHTML = `
@@ -333,7 +456,10 @@ async function toggleTask(id, completed) {
     try {
         await taskManager.toggleTask(id, completed ? 1 : 0);
         await loadTasks();
-        if (completed) showToast('✅ Задача выполнена!');
+        if (completed) {
+            showToast('✅ Задача выполнена!');
+            showBrowserNotification('🎉 Задача выполнена', 'Отличная работа!');
+        }
     } catch (error) {
         console.error('Error toggling task:', error);
         showToast('Ошибка', true);
@@ -441,21 +567,41 @@ async function clearAllTasks() {
 
 // ============ ИНИЦИАЛИЗАЦИЯ ============
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log('🚀 Приложение запускается...');
+    
     await taskManager.init();
     setDefaultDateTime();
     await loadTasks();
     
-    // Обработчики
-    document.getElementById('addTaskBtn').addEventListener('click', addTask);
-    document.getElementById('exportBtn').addEventListener('click', exportData);
-    document.getElementById('importBtn').addEventListener('click', importData);
-    document.getElementById('clearAllBtn').addEventListener('click', clearAllTasks);
-    document.getElementById('saveEditBtn').addEventListener('click', () => {
+    // Обработчики кнопок
+    const addBtn = document.getElementById('addTaskBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const clearBtn = document.getElementById('clearAllBtn');
+    const saveBtn = document.getElementById('saveEditBtn');
+    const closeBtn = document.getElementById('closeModalBtn');
+    const modalClose = document.querySelector('.modal-close');
+    const notificationBtn = document.getElementById('notificationBtn');
+    const taskTitleInput = document.getElementById('taskTitle');
+    
+    if (addBtn) addBtn.addEventListener('click', addTask);
+    if (exportBtn) exportBtn.addEventListener('click', exportData);
+    if (importBtn) importBtn.addEventListener('click', importData);
+    if (clearBtn) clearBtn.addEventListener('click', clearAllTasks);
+    if (saveBtn) saveBtn.addEventListener('click', () => {
         if (editingTaskId) editTask(editingTaskId, document.getElementById('editTitle').value);
     });
-    document.getElementById('closeModalBtn').addEventListener('click', closeModal);
-    document.querySelector('.modal-close')?.addEventListener('click', closeModal);
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (modalClose) modalClose.addEventListener('click', closeModal);
     
+    if (notificationBtn) {
+        notificationBtn.addEventListener('click', requestNotificationPermission);
+        console.log('✅ Кнопка уведомлений найдена');
+    } else {
+        console.log('❌ Кнопка уведомлений НЕ найдена');
+    }
+    
+    // Фильтры
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -465,12 +611,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
     
-    document.getElementById('taskTitle').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') addTask();
-    });
+    // Enter в поле ввода
+    if (taskTitleInput) {
+        taskTitleInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addTask();
+        });
+    }
     
     // Закрытие модалки по клику вне
-    document.getElementById('editModal').addEventListener('click', (e) => {
-        if (e.target === document.getElementById('editModal')) closeModal();
-    });
+    const modal = document.getElementById('editModal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+    }
+    
+    // Проверка статуса уведомлений при загрузке
+    if (Notification.permission === 'granted') {
+        updateNotificationButton(true);
+        console.log('✅ Уведомления уже разрешены');
+    } else {
+        console.log('⚠️ Статус уведомлений:', Notification.permission);
+    }
+    
+    // Запуск проверки напоминаний каждую минуту
+    setInterval(checkReminders, 60000);
+    console.log('✅ Таймер напоминаний запущен (каждую минуту)');
 });
