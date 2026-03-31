@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>TaskFlow — Умный планировщик задач</title>
-    <meta name="description" content="Современный планировщик задач с напоминаниями и синхронизацией">
+    <meta name="description" content="Современный планировщик задач с напоминаниями">
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
     <meta name="theme-color" content="#6366f1">
@@ -24,19 +24,22 @@
                 </svg>
                 <h1>TaskFlow</h1>
             </div>
-            <div class="header-stats">
-                <div class="stat-card" id="statTotal">
-                    <span class="stat-value">0</span>
-                    <span class="stat-label">Всего</span>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <div class="header-stats">
+                    <div class="stat-card" id="statTotal">
+                        <span class="stat-value">0</span>
+                        <span class="stat-label">Всего</span>
+                    </div>
+                    <div class="stat-card" id="statActive">
+                        <span class="stat-value">0</span>
+                        <span class="stat-label">Активных</span>
+                    </div>
+                    <div class="stat-card" id="statCompleted">
+                        <span class="stat-value">0</span>
+                        <span class="stat-label">Выполнено</span>
+                    </div>
                 </div>
-                <div class="stat-card" id="statActive">
-                    <span class="stat-value">0</span>
-                    <span class="stat-label">Активных</span>
-                </div>
-                <div class="stat-card" id="statCompleted">
-                    <span class="stat-value">0</span>
-                    <span class="stat-label">Выполнено</span>
-                </div>
+                <button id="notificationBtn" class="notif-btn">🔔 Включить уведомления</button>
             </div>
         </header>
 
@@ -127,7 +130,7 @@
         </div>
     </div>
 
-    <!-- Уведомление -->
+    <!-- Уведомление (тост) -->
     <div id="toast" class="toast"></div>
 
     <script src="app.js"></script>
